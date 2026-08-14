@@ -5,47 +5,121 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>用量统计 · Token Usage</title>
 <style>
-  :root { color-scheme: light dark; }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; padding: 24px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
-    background: #f6f7f9; color: #1f2328;
+  :root {
+    --accent: #4d6bfe;
+    --accent-soft: rgba(77, 107, 254, 0.12);
+    --bg: #f4f5f9;
+    --card: #ffffff;
+    --card-2: #fbfbfe;
+    --text: #1a1d26;
+    --text-2: #6b7280;
+    --text-3: #9aa1af;
+    --border: #e8eaf1;
+    --hover: #f1f3f8;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+    color-scheme: light dark;
   }
   @media (prefers-color-scheme: dark) {
-    body { background: #111418; color: #e6e6e6; }
-    .card, table { background: #1a1e24; border-color: #2c313a; }
-    th { color: #9aa4b2; }
-    td, th { border-color: #2c313a; }
+    :root {
+      --accent: #5b7cff;
+      --accent-soft: rgba(91, 124, 255, 0.16);
+      --bg: #0c0e14;
+      --card: #151823;
+      --card-2: #1a1e2b;
+      --text: #e7e9f0;
+      --text-2: #98a0b3;
+      --text-3: #5f6673;
+      --border: #232838;
+      --hover: #1d2130;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
   }
-  .wrap { max-width: 900px; margin: 0 auto; }
-  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
-  h1 { font-size: 20px; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .shell { max-width: 920px; margin: 0 auto; padding: 32px 28px 40px; }
+
+  .hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 26px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 40px; height: 40px; border-radius: 11px; flex: none;
+    background: linear-gradient(135deg, #4d6bfe, #7c4dff);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 12px rgba(77, 107, 254, 0.35);
+  }
+  .logo svg { width: 22px; height: 22px; }
+  .brand h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand p { margin: 2px 0 0; font-size: 12.5px; color: var(--text-2); }
   .controls { display: flex; gap: 8px; align-items: center; }
-  select, button {
-    font-size: 13px; padding: 6px 10px; border-radius: 8px;
-    border: 1px solid #d0d7de; background: #fff; color: inherit; cursor: pointer;
+  .controls select, .controls button {
+    font: inherit; font-size: 13px; padding: 8px 12px; border-radius: 9px;
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+    cursor: pointer; transition: border-color .15s, box-shadow .15s;
   }
-  @media (prefers-color-scheme: dark) { select, button { background: #1a1e24; border-color: #2c313a; } }
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
-  .card { background: #fff; border: 1px solid #e2e5ea; border-radius: 12px; padding: 14px 16px; }
-  .card .k { font-size: 12px; color: #8b949e; margin-bottom: 6px; }
-  .card .v { font-size: 18px; font-weight: 600; }
-  .card.cost .v { color: #d97706; }
-  table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e2e5ea; border-radius: 12px; overflow: hidden; }
-  th, td { text-align: right; padding: 9px 12px; border-bottom: 1px solid #eef0f2; font-size: 13px; }
-  th:first-child, td:first-child { text-align: left; }
-  th { background: #fafbfc; color: #57606a; font-weight: 600; }
+  .controls select:hover, .controls button:hover { border-color: var(--accent); }
+  .controls select:focus, .controls button:focus { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); border-color: var(--accent); }
+  .controls .refresh { color: #fff; background: var(--accent); border-color: var(--accent); }
+  .controls .refresh:hover { opacity: .9; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); }
+  .stat .k { font-size: 12px; color: var(--text-2); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .stat .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .stat .v { font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .stat.cost { background: linear-gradient(135deg, #4d6bfe, #6a4dff); border-color: transparent; color: #fff; }
+  .stat.cost .k { color: rgba(255,255,255,.8); }
+  .stat.cost .v { color: #fff; }
+
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
+  .panel-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .panel-head h2 { margin: 0; font-size: 14.5px; font-weight: 600; }
+  .panel-head .hint { font-size: 12px; color: var(--text-3); }
+
+  .share { padding: 16px 20px 6px; }
+  .share .bar { display: flex; height: 10px; border-radius: 6px; overflow: hidden; background: var(--card-2); }
+  .share .bar .seg { height: 100%; }
+  .share .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px; }
+  .share .legend .item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
+  .share .legend .sw { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    position: sticky; top: 0; background: var(--card-2); color: var(--text-2);
+    font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em;
+    text-align: right; padding: 10px 16px; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  thead th:first-child, tbody td:first-child { text-align: left; }
+  tbody td {
+    padding: 11px 16px; font-size: 13px; text-align: right; border-bottom: 1px solid var(--border);
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
   tbody tr:last-child td { border-bottom: none; }
-  .muted { color: #8b949e; }
-  footer { margin-top: 12px; font-size: 12px; color: #8b949e; }
-  .empty { text-align: center; padding: 32px; color: #8b949e; }
+  tbody tr:hover td { background: var(--hover); }
+  .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+  td.model { font-weight: 500; }
+  td.cost { color: #d97706; font-weight: 600; }
+  @media (prefers-color-scheme: dark) { td.cost { color: #fbbf24; } }
+  .empty { text-align: center; padding: 48px 20px; color: var(--text-3); }
+
+  footer { margin-top: 14px; font-size: 12px; color: var(--text-3); text-align: center; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>用量统计 · Token Usage</h1>
+<div class="shell">
+  <div class="hero">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9M4 19h3M15 5v8M15 5h-3M12 3H4a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-8z"/></svg>
+      </div>
+      <div>
+        <h1>用量统计</h1>
+        <p>Token Usage · DeepSeek Harness</p>
+      </div>
+    </div>
     <div class="controls">
       <select id="since">
         <option value="all">全部</option>
@@ -57,35 +131,68 @@
         <option value="model">按模型</option>
         <option value="day">按天</option>
       </select>
-      <button id="refresh">刷新</button>
+      <button id="refresh" class="refresh">刷新</button>
     </div>
-  </header>
+  </div>
 
   <div class="cards" id="cards"></div>
-  <div id="tableWrap"></div>
-  <footer>费用按默认 DeepSeek 官方单价折算（可在插件 config.prices 覆盖），单位：人民币 ¥，仅供估算。</footer>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2 id="panelTitle">模型分布</h2>
+      <span class="hint" id="panelHint">按请求数排序</span>
+    </div>
+    <div class="share" id="share"></div>
+    <div id="tableWrap"></div>
+  </div>
+
+  <footer>费用按默认 DeepSeek 官方单价折算（可在插件 config.prices 覆盖）· 单位人民币 ¥ · 仅供估算</footer>
 </div>
 
 <script>
-function fmt(n) { return (n == null ? 0 : n).toLocaleString('zh-CN'); }
-function yen(n) { return '¥' + (n == null ? 0 : n).toFixed(4); }
+function fmt(n) { return (n == null ? 0 : n).toLocaleString('en-US'); }
+function yen(n) { return '¥' + (n == null ? 0 : n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }); }
 function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]; }); }
+
+var PALETTE = ['#4d6bfe', '#7c4dff', '#06b6d4', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#f43f5e', '#0ea5e9', '#84cc16'];
+
+function statCard(label, value, dot) {
+  return '<div class="stat"><div class="k"><span class="dot" style="background:' + dot + '"></span>' + esc(label) + '</div><div class="v">' + value + '</div></div>';
+}
+
+function renderShare(rows, group) {
+  var el = document.getElementById('share');
+  if (!rows || rows.length === 0) { el.innerHTML = ''; return; }
+  var metric = function (r) { return r.cost_cny || 0; };
+  var total = rows.reduce(function (s, r) { return s + metric(r); }, 0);
+  if (total <= 0) { total = rows.reduce(function (s, r) { return s + (r.requests || 0); }, 0); metric = function (r) { return r.requests || 0; }; }
+  var segs = '', legend = '';
+  rows.forEach(function (r, i) {
+    var pct = total > 0 ? (metric(r) / total * 100) : 0;
+    if (pct <= 0) return;
+    var c = PALETTE[i % PALETTE.length];
+    segs += '<div class="seg" style="width:' + pct.toFixed(2) + '%;background:' + c + '" title="' + esc(r.bucket) + '"></div>';
+    legend += '<span class="item"><span class="sw" style="background:' + c + '"></span>' + esc(r.bucket) + ' · ' + pct.toFixed(1) + '%</span>';
+  });
+  el.innerHTML = '<div class="bar">' + segs + '</div><div class="legend">' + legend + '</div>';
+}
 
 function render(data) {
   var t = data.totals || {};
-  var cards = [
-    { k: '请求数', v: fmt(t.requests) },
-    { k: '输入 token', v: fmt(t.input_tokens) },
-    { k: '输出 token', v: fmt(t.output_tokens) },
-    { k: '缓存读 token', v: fmt(t.cache_read_tokens) },
-    { k: '缓存写 token', v: fmt(t.cache_write_tokens) },
-    { k: '估算费用', v: yen(t.cost_cny), cost: true },
-  ];
-  document.getElementById('cards').innerHTML = cards.map(function (c) {
-    return '<div class="card' + (c.cost ? ' cost' : '') + '"><div class="k">' + esc(c.k) + '</div><div class="v">' + esc(c.v) + '</div></div>';
-  }).join('');
+  var cards = '';
+  cards += statCard('请求数', fmt(t.requests), '#4d6bfe');
+  cards += statCard('输入 token', fmt(t.input_tokens), '#7c4dff');
+  cards += statCard('输出 token', fmt(t.output_tokens), '#06b6d4');
+  cards += statCard('缓存读 token', fmt(t.cache_read_tokens), '#f59e0b');
+  cards += statCard('缓存写 token', fmt(t.cache_write_tokens), '#10b981');
+  document.getElementById('cards').innerHTML = cards +
+    '<div class="stat cost"><div class="k">估算费用</div><div class="v">' + yen(t.cost_cny) + '</div></div>';
 
   var rows = data.breakdown || [];
+  document.getElementById('panelTitle').textContent = data.group === 'day' ? '按天分布' : '模型分布';
+  document.getElementById('panelHint').textContent = data.group === 'day' ? '按日期倒序' : '按请求数排序';
+  renderShare(rows, data.group);
+
   var head = data.group === 'day'
     ? ['日期', '请求数', '输入', '输出', '费用']
     : ['模型', '请求数', '输入', '输出', '缓存读', '缓存写', '费用'];
@@ -94,11 +201,14 @@ function render(data) {
     html = '<div class="empty">暂无数据</div>';
   } else {
     html = '<table><thead><tr>' + head.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') + '</tr></thead><tbody>';
-    html += rows.map(function (r) {
+    html += rows.map(function (r, idx) {
+      var bucket = data.group === 'day'
+        ? '<td class="model">' + esc(r.bucket) + '</td>'
+        : '<td class="model"><span class="dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:' + (PALETTE[idx % PALETTE.length]) + ';margin-right:8px"></span>' + esc(r.bucket) + '</td>';
       var cells = data.group === 'day'
-        ? [esc(r.bucket), fmt(r.requests), fmt(r.input_tokens), fmt(r.output_tokens), yen(r.cost_cny)]
-        : [esc(r.bucket), fmt(r.requests), fmt(r.input_tokens), fmt(r.output_tokens), fmt(r.cache_read_tokens), fmt(r.cache_write_tokens), yen(r.cost_cny)];
-      return '<tr>' + cells.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>';
+        ? [bucket, '<td class="mono">' + fmt(r.requests) + '</td>', '<td class="mono">' + fmt(r.input_tokens) + '</td>', '<td class="mono">' + fmt(r.output_tokens) + '</td>', '<td class="mono cost">' + yen(r.cost_cny) + '</td>']
+        : [bucket, '<td class="mono">' + fmt(r.requests) + '</td>', '<td class="mono">' + fmt(r.input_tokens) + '</td>', '<td class="mono">' + fmt(r.output_tokens) + '</td>', '<td class="mono">' + fmt(r.cache_read_tokens) + '</td>', '<td class="mono">' + fmt(r.cache_write_tokens) + '</td>', '<td class="mono cost">' + yen(r.cost_cny) + '</td>'];
+      return '<tr>' + cells.join('') + '</tr>';
     }).join('');
     html += '</tbody></table>';
   }
@@ -110,7 +220,7 @@ function load() {
   var group = document.getElementById('group').value;
   var url = '/usage-stats/summary?since=' + encodeURIComponent(since) + '&group=' + encodeURIComponent(group);
   fetch(url).then(function (r) { return r.json(); }).then(render).catch(function (e) {
-    document.getElementById('cards').innerHTML = '<div class="card"><div class="v">加载失败</div></div>';
+    document.getElementById('cards').innerHTML = '<div class="stat"><div class="v">加载失败</div></div>';
     document.getElementById('tableWrap').innerHTML = '<div class="empty">' + esc(String(e)) + '</div>';
   });
 }

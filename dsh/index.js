@@ -165,8 +165,8 @@ function byDay(db, where, params, prices) {
   return [...map.values()].slice(0, 90).map((entry) => ({ ...entry, cost_cny: round4(entry.cost_cny) }))
 }
 
-// 面板 HTML 在请求时从磁盘读取（同包内的 panel.html）。
-const PANEL_HTML = readFileSync(new URL('./panel.html', import.meta.url), 'utf8')
+// 面板 HTML 每次请求时从磁盘读取（同包内的 panel.html），改样式无需重启。
+const panelHtmlPath = new URL('./panel.html', import.meta.url)
 
 function registerRoutes(ctx, db, prices) {
   const json = (res, value, status = 200) => {
@@ -188,7 +188,7 @@ function registerRoutes(ctx, db, prices) {
     }
     if (url.pathname === '/usage-stats/panel' || url.pathname === '/usage-stats/') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' })
-      res.end(PANEL_HTML)
+      res.end(readFileSync(panelHtmlPath, 'utf8'))
       return
     }
     res.writeHead(404)
