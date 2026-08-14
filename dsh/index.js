@@ -15,13 +15,34 @@ import { mkdirSync } from 'node:fs'
 export const name = 'dsh-usage-stats'
 export const inject = ['tools', 'webServer']
 
-// 默认单价：每百万 token 的人民币价格（DeepSeek 官方，2026-08）。
+// 每百万 token 的人民币单价（DeepSeek 官方）。
+// 字段语义：input=输入(缓存未命中)、cacheRead=输入(缓存命中)、output=输出；cacheWrite 官方未公布，按 0 计。
+// 分两个价目阶段，按请求时间 ts 决定套用哪一套：
+//   - 2026-08-17 00:00（北京时间）之前：固定价（无峰谷）。
+//   - 2026-08-17 00:00 起：峰谷价，高峰时段北京时间 9:00-12:00、14:00-18:00 用 peak，
+//     其余时段用 offPeak（= peak 的一半）。
 // 未匹配到的模型按 0 计费（也可在 config.prices 里补）。
+const CUTOVER_MS = Date.UTC(2026, 7, 16, 16, 0, 0) // 2026-08-17 00:00 北京时间
 const DEFAULT_PRICES = {
-  'deepseek-v4-flash': { input: 1.0, output: 2.0, cacheRead: 0.2, cacheWrite: 1.0 },
-  'deepseek-v4-pro': { input: 12.0, output: 24.0, cacheRead: 1.0, cacheWrite: 12.0 },
+  'deepseek-v4-flash': { before: { input: 1.0, output: 2.0, cacheRead: 0.02, cacheWrite: 0 }, offPeak: { input: 1.5, output: 4.5, cacheRead: 0.05, cacheWrite: 0 }, peak: { input: 3.0, output: 9.0, cacheRead: 0.10, cacheWrite: 0 } },
+  'deepseek-v4-pro': { before: { input: 3.0, output: 6.0, cacheRead: 0.025, cacheWrite: 0 }, offPeak: { input: 4.5, output: 13.5, cacheRead: 0.15, cacheWrite: 0 }, peak: { input: 9.0, output: 27.0, cacheRead: 0.30, cacheWrite: 0 } },
 }
-const FALLBACK_PRICE = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+const FALLBACK_PRICE = { before: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, offPeak: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, peak: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }
+
+// 判断一个请求时间戳是否落在高峰时段（北京时间 9:00-12:00、14:00-18:00）。
+// ts 是毫秒时间戳；用 UTC 偏移 8 小时换算到北京时间，避免含政治性的时区映射。
+function isPeakTime(ts) {
+  const d = new Date(ts)
+  const hour = (d.getUTCHours() + 8) % 24
+  return (hour >= 9 && hour < 12) || (hour >= 14 && hour < 18)
+}
+
+// 取一个请求应套用的单价档：8/17 前用 before；8/17 起高峰时段用 peak，其余用 offPeak。
+function priceForTime(modelPrice, ts) {
+  if (typeof ts !== 'number' || Number.isNaN(ts)) return modelPrice.offPeak
+  if (ts < CUTOVER_MS) return modelPrice.before
+  return isPeakTime(ts) ? modelPrice.peak : modelPrice.offPeak
+}
 
 function defaultDbPath() {
   return join(process.env.DSH_HOME || join(homedir(), '.dsh'), 'usage-stats.db')
@@ -58,11 +79,13 @@ function priceFor(prices, model) {
 }
 
 function costOf(price, row) {
+  // price 是 {before, offPeak, peak}，按请求时间 ts 选取对应档位；无 ts 时按空闲档。
+  const tier = priceForTime(price, row.ts)
   return (
-    row.input_tokens * price.input +
-    row.output_tokens * price.output +
-    row.cache_read_tokens * price.cacheRead +
-    row.cache_write_tokens * price.cacheWrite
+    row.input_tokens * tier.input +
+    row.output_tokens * tier.output +
+    row.cache_read_tokens * tier.cacheRead +
+    row.cache_write_tokens * tier.cacheWrite
   ) / 1e6
 }
 
@@ -79,6 +102,12 @@ function queryUsage(db, args, prices) {
   const where = windowMs ? 'WHERE ts >= ?' : ''
   const params = windowMs ? [Date.now() - windowMs] : []
 
+  // 去重：同一笔请求（session_id + 4 个 token 数一致）可能因链路经过多 provider 被记两次，
+  // 这里每组只取一行，避免费用翻倍。费用按每行的 ts 选取峰/谷单价。
+  const base = `FROM (SELECT ts, provider, model, session_id, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens
+                      FROM requests ${where}
+                      GROUP BY COALESCE(session_id,''), input_tokens, output_tokens, cache_read_tokens, cache_write_tokens) d ${where}`
+
   const totals = db
     .prepare(
       `SELECT COUNT(*) AS requests,
@@ -86,7 +115,7 @@ function queryUsage(db, args, prices) {
               COALESCE(SUM(output_tokens), 0) AS output_tokens,
               COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,
               COALESCE(SUM(cache_write_tokens), 0) AS cache_write_tokens
-       FROM requests ${where}`,
+       ${base}`,
     )
     .get(...params)
 
@@ -99,13 +128,25 @@ function queryUsage(db, args, prices) {
               COALESCE(SUM(output_tokens), 0) AS output_tokens,
               COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,
               COALESCE(SUM(cache_write_tokens), 0) AS cache_write_tokens
-       FROM requests ${where}
+       ${base}
        GROUP BY model ORDER BY requests DESC LIMIT 100`,
     )
     .all(...params)
 
-  const totalCost = round4(byModel.reduce((sum, row) => sum + costOf(priceFor(prices, row.model), row), 0))
+  // 逐行按 ts 选取峰/谷单价求和：从去重后的明细里读每行的 ts，再按模型价目表折算。
+  const totalCostRows = db
+    .prepare(
+      `SELECT ts, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens ${base}`,
+    )
+    .all(...params)
+  const totalCost = round4(totalCostRows.reduce((sum, row) => sum + costOf(priceFor(prices, row.model), row), 0))
 
+  // 每个模型的费用 = 该模型去重后所有行逐行按 ts 分档求和。
+  const costByModel = new Map()
+  for (const row of totalCostRows) {
+    const key = row.model ?? '(unknown)'
+    costByModel.set(key, (costByModel.get(key) ?? 0) + costOf(priceFor(prices, row.model), row))
+  }
   const breakdown =
     group === 'day'
       ? byDay(db, where, params, prices)
@@ -116,7 +157,7 @@ function queryUsage(db, args, prices) {
           output_tokens: row.output_tokens,
           cache_read_tokens: row.cache_read_tokens,
           cache_write_tokens: row.cache_write_tokens,
-          cost_cny: round4(costOf(priceFor(prices, row.model), row)),
+          cost_cny: round4(costByModel.get(row.model) ?? 0),
         }))
 
   return {
@@ -128,17 +169,16 @@ function queryUsage(db, args, prices) {
 }
 
 function byDay(db, where, params, prices) {
+  // 去重后的明细行，逐行走峰/谷分档计价；day 用 ts 本地日期。
   const rows = db
     .prepare(
-      `SELECT date(ts / 1000, 'unixepoch', 'localtime') AS day,
+      `SELECT ts, date(ts / 1000, 'unixepoch', 'localtime') AS day,
               COALESCE(model, '(unknown)') AS model,
-              COUNT(*) AS requests,
-              COALESCE(SUM(input_tokens), 0) AS input_tokens,
-              COALESCE(SUM(output_tokens), 0) AS output_tokens,
-              COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,
-              COALESCE(SUM(cache_write_tokens), 0) AS cache_write_tokens
-       FROM requests ${where}
-       GROUP BY day, model ORDER BY day DESC LIMIT 500`,
+              input_tokens, output_tokens, cache_read_tokens, cache_write_tokens
+       FROM (SELECT ts, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens
+             FROM requests ${where}
+             GROUP BY COALESCE(session_id,''), input_tokens, output_tokens, cache_read_tokens, cache_write_tokens) d ${where}
+       ORDER BY day DESC LIMIT 5000`,
     )
     .all(...params)
   const map = new Map()
@@ -154,7 +194,7 @@ function byDay(db, where, params, prices) {
         cache_write_tokens: 0,
         cost_cny: 0,
       }
-    entry.requests += row.requests
+    entry.requests += 1
     entry.input_tokens += row.input_tokens
     entry.output_tokens += row.output_tokens
     entry.cache_read_tokens += row.cache_read_tokens
