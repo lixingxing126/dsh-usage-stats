@@ -6,6 +6,7 @@
   "exports": {
     ".": "./dsh/index.js",
     "./dsh": "./dsh/index.js",
+    "./client": "./dsh/client.js",
     "./package.json": "./package.json"
   },
   "files": [
@@ -20,6 +21,12 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ],
+      "platform": "web"
     }
   }
 }
