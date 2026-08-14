@@ -138,9 +138,9 @@ window.__ModuleLoader__.load({
 
       var placeView = function () {
         if (disposed) return
-        if (pane !== undefined && !pane.isConnected) pane = undefined
-        if (pane === undefined) pane = conversationPane()
-        if (pane === undefined) return
+        if (pane && !pane.isConnected) pane = null
+        if (!pane) pane = conversationPane()
+        if (!pane) return
         if (view.wrap.parentElement !== pane) pane.appendChild(view.wrap)
       }
 
