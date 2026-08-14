@@ -107,6 +107,15 @@ export function apply(ctx, config = {}) {
       },
       required: [],
     },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: true,
+      },
+      render: (_args, value) => {
+        return [{ type: 'text', text: JSON.stringify(value, null, 2) }]
+      },
+    },
     execute(args = {}) {
       return queryUsage(db, args)
     },
