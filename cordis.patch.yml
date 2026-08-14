@@ -1,0 +1,4 @@
+# dsh bundle layer: mount the usage-stats plugin.
+- insert:
+    - id: usage-stats
+      name: 'dsh-usage-stats'

@@ -1,0 +1,25 @@
+{
+  "name": "dsh-usage-stats",
+  "version": "0.1.0",
+  "description": "Minimal DeepSeek Harness (DSH) plugin that records LLM token usage (input/output/cache) per request into a local SQLite database and exposes a read_usage tool.",
+  "type": "module",
+  "exports": {
+    ".": "./dsh/index.js",
+    "./dsh": "./dsh/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dsh",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
