@@ -1,6 +1,6 @@
 // dsh-usage-stats 客户端插件：在 Web UI 侧边栏注入「用量统计」入口，
-// 点击后以 iframe 覆盖层打开宿主的 /usage-stats/panel 仪表盘。
-// 纯 DOM 实现，无 React 依赖；与宿主插件同包（dsh.client 声明）。
+// 点击后在「会话区」内嵌打开 /usage-stats/panel 仪表盘（保留左侧栏），
+// 与任务看板同一套挂载方式。纯 DOM 实现，无 React 依赖。
 window.__ModuleLoader__.load({
   id: 'dsh-usage-stats',
   factory: () => {
@@ -10,8 +10,9 @@ window.__ModuleLoader__.load({
 
     var PANEL_URL = '/usage-stats/panel'
     var ENTRY_ID = 'dsh-usage-stats-entry'
-    var OVERLAY_ID = 'dsh-usage-stats-overlay'
+    var VIEW_ID = 'dsh-usage-stats-view'
     var STYLE_ID = 'dsh-usage-stats-style'
+    var ACTIVE_ATTR = 'data-dsh-usage-stats-active'
 
     function injectStyle() {
       if (document.getElementById(STYLE_ID)) return
@@ -22,26 +23,26 @@ window.__ModuleLoader__.load({
         '#' + ENTRY_ID + ':hover{background:var(--dsw-specific-sidebar-nav-item-hover,rgba(127,127,127,.1));color:var(--dsw-alias-label-primary,#1f2328)}',
         '#' + ENTRY_ID + ' .ic{flex:none;display:inline-flex;align-items:center}',
         '#' + ENTRY_ID + ' .lb{text-overflow:ellipsis;overflow:hidden}',
-        '#' + OVERLAY_ID + '{position:fixed;inset:0;z-index:9999;display:none;flex-direction:column;background:#f4f5f9}',
-        '@media (prefers-color-scheme: dark){#' + OVERLAY_ID + '{background:#0c0e14}}',
-        '#' + OVERLAY_ID + '[data-open]{display:flex}',
-        '#' + OVERLAY_ID + ' .bar{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;border-bottom:1px solid #e8eaf1;flex:none;background:#ffffff}',
-        '@media (prefers-color-scheme: dark){#' + OVERLAY_ID + ' .bar{background:#151823;border-bottom-color:#232838}}',
-        '#' + OVERLAY_ID + ' .title{font-size:15px;font-weight:600;color:#1f2328}',
-        '@media (prefers-color-scheme: dark){#' + OVERLAY_ID + ' .title{color:#e7e9f0}}',
-        '#' + OVERLAY_ID + ' .close{cursor:pointer;background:transparent;border:none;font-size:22px;line-height:1;color:#8b949e;padding:2px 6px}',
-        '@media (prefers-color-scheme: dark){#' + OVERLAY_ID + ' .close{color:#98a0b3}}',
-        '#' + OVERLAY_ID + ' iframe{flex:1;border:none;width:100%;background:#fff}',
+        '[data-pane="conversation"]{position:relative}',
+        '#' + VIEW_ID + '{position:absolute;inset:0;z-index:5;display:none;flex-direction:column;background:#f4f5f9}',
+        '@media (prefers-color-scheme: dark){#' + VIEW_ID + '{background:#0c0e14}}',
+        'html[' + ACTIVE_ATTR + '] #' + VIEW_ID + '{display:flex}',
+        'html[' + ACTIVE_ATTR + '] [data-pane="conversation"] > :not(#' + VIEW_ID + '){display:none}',
+        '#' + VIEW_ID + ' .bar{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;border-bottom:1px solid #e8eaf1;flex:none;background:#ffffff}',
+        '@media (prefers-color-scheme: dark){#' + VIEW_ID + ' .bar{background:#151823;border-bottom-color:#232838}}',
+        '#' + VIEW_ID + ' .title{font-size:15px;font-weight:600;color:#1f2328}',
+        '@media (prefers-color-scheme: dark){#' + VIEW_ID + ' .title{color:#e7e9f0}}',
+        '#' + VIEW_ID + ' .close{cursor:pointer;background:transparent;border:none;font-size:22px;line-height:1;color:#8b949e;padding:2px 6px}',
+        '@media (prefers-color-scheme: dark){#' + VIEW_ID + ' .close{color:#98a0b3}}',
+        '#' + VIEW_ID + ' iframe{flex:1;border:none;width:100%;background:#fff}',
       ].join('\n')
       document.head.appendChild(tag)
     }
 
-    // 侧边栏外层 pane（布局层）
     function sidebarColumn() {
       return document.querySelector('[data-pane="sidebar"], [class*="sidebarCol"]')
     }
 
-    // 真正插入按钮的容器：logo 行的父元素（侧边栏插件的 flex 列）
     function sidebarRoot() {
       var column = sidebarColumn()
       if (!column) return undefined
@@ -50,45 +51,46 @@ window.__ModuleLoader__.load({
       return column.firstElementChild || column
     }
 
-    function createOverlay() {
+    function conversationPane() {
+      return document.querySelector('[data-pane="conversation"]')
+    }
+
+    function isOpen() {
+      return document.documentElement.hasAttribute(ACTIVE_ATTR)
+    }
+
+    function open() {
+      document.documentElement.setAttribute(ACTIVE_ATTR, '')
+    }
+
+    function close() {
+      document.documentElement.removeAttribute(ACTIVE_ATTR)
+    }
+
+    function createView() {
       var wrap = document.createElement('div')
-      wrap.id = OVERLAY_ID
+      wrap.id = VIEW_ID
       var bar = document.createElement('div')
       bar.className = 'bar'
       var title = document.createElement('span')
       title.className = 'title'
       title.textContent = '用量统计'
-      var close = document.createElement('button')
-      close.type = 'button'
-      close.className = 'close'
-      close.setAttribute('aria-label', '关闭')
-      close.textContent = '×'
+      var closeBtn = document.createElement('button')
+      closeBtn.type = 'button'
+      closeBtn.className = 'close'
+      closeBtn.setAttribute('aria-label', '关闭')
+      closeBtn.textContent = '×'
       bar.appendChild(title)
-      bar.appendChild(close)
+      bar.appendChild(closeBtn)
       var iframe = document.createElement('iframe')
       iframe.title = '用量统计'
       wrap.appendChild(bar)
       wrap.appendChild(iframe)
-      document.body.appendChild(wrap)
-      close.addEventListener('click', function () {
-        wrap.removeAttribute('data-open')
-      })
-      return {
-        open: function () {
-          iframe.src = PANEL_URL
-          wrap.setAttribute('data-open', '')
-        },
-        close: function () {
-          wrap.removeAttribute('data-open')
-        },
-        isOpen: function () {
-          return wrap.hasAttribute('data-open')
-        },
-        wrap: wrap,
-      }
+      closeBtn.addEventListener('click', close)
+      return { wrap: wrap, iframe: iframe }
     }
 
-    function createEntry(overlay) {
+    function createEntry() {
       var btn = document.createElement('button')
       btn.type = 'button'
       btn.id = ENTRY_ID
@@ -97,13 +99,15 @@ window.__ModuleLoader__.load({
         '<span class="ic"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12.5v-3M2 12.5h3M12 3.5v3M12 3.5H9M3 2.5h10a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z"/></svg></span>' +
         '<span class="lb">用量统计</span>'
       btn.addEventListener('click', function () {
-        if (overlay.isOpen()) overlay.close()
-        else overlay.open()
+        if (isOpen()) close()
+        else {
+          view.iframe.src = PANEL_URL
+          open()
+        }
       })
       return btn
     }
 
-    // 找「新会话」按钮，把入口插在它下面一行（与 task-board 一致）。
     function placeEntry(root, entry) {
       var newSession = root.querySelector('button[class*="newSession"]')
       if (!newSession) {
@@ -126,23 +130,31 @@ window.__ModuleLoader__.load({
 
     function mount() {
       injectStyle()
-      var overlay = createOverlay()
-      var entry = createEntry(overlay)
+      var view = createView()
+      var entry = createEntry()
       var disposed = false
       var root
+      var pane
+
+      var placeView = function () {
+        if (disposed) return
+        if (pane !== undefined && !pane.isConnected) pane = undefined
+        if (pane === undefined) pane = conversationPane()
+        if (pane === undefined) return
+        if (view.wrap.parentElement !== pane) pane.appendChild(view.wrap)
+      }
 
       var tryPlace = function () {
         if (disposed) return
         if (root !== undefined && !root.isConnected) root = undefined
         if (root === undefined) root = sidebarRoot()
-        if (root === undefined) return
-        if (placeEntry(root, entry)) {
+        if (root !== undefined && placeEntry(root, entry)) {
           rootObserver.observe(root, { childList: true, subtree: true })
           waitObserver.disconnect()
         }
+        placeView()
       }
 
-      // 等待 shell 渲染（body 级观察），就位后改为观察插入容器自愈。
       var waitObserver = new MutationObserver(tryPlace)
       waitObserver.observe(document.body, { childList: true, subtree: true })
       var rootObserver = new MutationObserver(function () {
@@ -155,7 +167,7 @@ window.__ModuleLoader__.load({
       })
 
       var onKey = function (e) {
-        if (e.key === 'Escape' && overlay.isOpen()) overlay.close()
+        if (e.key === 'Escape' && isOpen()) close()
       }
       document.addEventListener('keydown', onKey)
       tryPlace()
@@ -165,8 +177,9 @@ window.__ModuleLoader__.load({
         waitObserver.disconnect()
         rootObserver.disconnect()
         document.removeEventListener('keydown', onKey)
+        close()
         if (entry.parentElement) entry.parentElement.removeChild(entry)
-        if (overlay.wrap.parentElement) overlay.wrap.parentElement.removeChild(overlay.wrap)
+        if (view.wrap.parentElement) view.wrap.parentElement.removeChild(view.wrap)
         var style = document.getElementById(STYLE_ID)
         if (style && style.parentElement) style.parentElement.removeChild(style)
       }
