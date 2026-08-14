@@ -90,7 +90,7 @@ window.__ModuleLoader__.load({
       return { wrap: wrap, iframe: iframe }
     }
 
-    function createEntry() {
+    function createEntry(view) {
       var btn = document.createElement('button')
       btn.type = 'button'
       btn.id = ENTRY_ID
@@ -131,7 +131,7 @@ window.__ModuleLoader__.load({
     function mount() {
       injectStyle()
       var view = createView()
-      var entry = createEntry()
+      var entry = createEntry(view)
       var disposed = false
       var root
       var pane
