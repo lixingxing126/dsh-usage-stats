@@ -1,10 +1,12 @@
 # dsh-usage-stats
 
-最小可跑的 DeepSeek Harness（DSH）用量统计插件：通过 `llm/stream` waterfall 包一层，把每次模型调用的 token 用量（输入 / 输出 / 缓存读 / 缓存写）落进本地 SQLite，并注册一个 `read_usage` 工具供 agent 查询。
+最小可跑的 DeepSeek Harness（DSH）用量统计插件：通过 `llm/stream` waterfall 包一层，把每次模型调用的 token 用量（输入 / 输出 / 缓存读 / 缓存写）落进本地 SQLite，并注册一个 `read_usage` 工具供 agent 查询，同时提供**费用折算**和**网页仪表盘**。
 
 - 只观察、不改流：记账失败不会影响模型调用本身
 - 仅依赖 Node 内置模块（`node:sqlite`、`node:fs` 等），零运行时依赖
 - 数据存 `~/.dsh/usage-stats.db`（可用 `config.dbPath` 覆盖）
+- 费用按默认 DeepSeek 官方单价折算（人民币 ¥，可用 `config.prices` 覆盖）
+- 网页面板：`http://127.0.0.1:3080/usage-stats/panel`
 
 ## 安装
 

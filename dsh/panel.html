@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>用量统计 · Token Usage</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: #f6f7f9; color: #1f2328;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #111418; color: #e6e6e6; }
+    .card, table { background: #1a1e24; border-color: #2c313a; }
+    th { color: #9aa4b2; }
+    td, th { border-color: #2c313a; }
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  h1 { font-size: 20px; margin: 0; }
+  .controls { display: flex; gap: 8px; align-items: center; }
+  select, button {
+    font-size: 13px; padding: 6px 10px; border-radius: 8px;
+    border: 1px solid #d0d7de; background: #fff; color: inherit; cursor: pointer;
+  }
+  @media (prefers-color-scheme: dark) { select, button { background: #1a1e24; border-color: #2c313a; } }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .card { background: #fff; border: 1px solid #e2e5ea; border-radius: 12px; padding: 14px 16px; }
+  .card .k { font-size: 12px; color: #8b949e; margin-bottom: 6px; }
+  .card .v { font-size: 18px; font-weight: 600; }
+  .card.cost .v { color: #d97706; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e2e5ea; border-radius: 12px; overflow: hidden; }
+  th, td { text-align: right; padding: 9px 12px; border-bottom: 1px solid #eef0f2; font-size: 13px; }
+  th:first-child, td:first-child { text-align: left; }
+  th { background: #fafbfc; color: #57606a; font-weight: 600; }
+  tbody tr:last-child td { border-bottom: none; }
+  .muted { color: #8b949e; }
+  footer { margin-top: 12px; font-size: 12px; color: #8b949e; }
+  .empty { text-align: center; padding: 32px; color: #8b949e; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>用量统计 · Token Usage</h1>
+    <div class="controls">
+      <select id="since">
+        <option value="all">全部</option>
+        <option value="1d">近 1 天</option>
+        <option value="7d">近 7 天</option>
+        <option value="30d">近 30 天</option>
+      </select>
+      <select id="group">
+        <option value="model">按模型</option>
+        <option value="day">按天</option>
+      </select>
+      <button id="refresh">刷新</button>
+    </div>
+  </header>
+
+  <div class="cards" id="cards"></div>
+  <div id="tableWrap"></div>
+  <footer>费用按默认 DeepSeek 官方单价折算（可在插件 config.prices 覆盖），单位：人民币 ¥，仅供估算。</footer>
+</div>
+
+<script>
+function fmt(n) { return (n == null ? 0 : n).toLocaleString('zh-CN'); }
+function yen(n) { return '¥' + (n == null ? 0 : n).toFixed(4); }
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]; }); }
+
+function render(data) {
+  var t = data.totals || {};
+  var cards = [
+    { k: '请求数', v: fmt(t.requests) },
+    { k: '输入 token', v: fmt(t.input_tokens) },
+    { k: '输出 token', v: fmt(t.output_tokens) },
+    { k: '缓存读 token', v: fmt(t.cache_read_tokens) },
+    { k: '缓存写 token', v: fmt(t.cache_write_tokens) },
+    { k: '估算费用', v: yen(t.cost_cny), cost: true },
+  ];
+  document.getElementById('cards').innerHTML = cards.map(function (c) {
+    return '<div class="card' + (c.cost ? ' cost' : '') + '"><div class="k">' + esc(c.k) + '</div><div class="v">' + esc(c.v) + '</div></div>';
+  }).join('');
+
+  var rows = data.breakdown || [];
+  var head = data.group === 'day'
+    ? ['日期', '请求数', '输入', '输出', '费用']
+    : ['模型', '请求数', '输入', '输出', '缓存读', '缓存写', '费用'];
+  var html = '';
+  if (rows.length === 0) {
+    html = '<div class="empty">暂无数据</div>';
+  } else {
+    html = '<table><thead><tr>' + head.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') + '</tr></thead><tbody>';
+    html += rows.map(function (r) {
+      var cells = data.group === 'day'
+        ? [esc(r.bucket), fmt(r.requests), fmt(r.input_tokens), fmt(r.output_tokens), yen(r.cost_cny)]
+        : [esc(r.bucket), fmt(r.requests), fmt(r.input_tokens), fmt(r.output_tokens), fmt(r.cache_read_tokens), fmt(r.cache_write_tokens), yen(r.cost_cny)];
+      return '<tr>' + cells.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>';
+    }).join('');
+    html += '</tbody></table>';
+  }
+  document.getElementById('tableWrap').innerHTML = html;
+}
+
+function load() {
+  var since = document.getElementById('since').value;
+  var group = document.getElementById('group').value;
+  var url = '/usage-stats/summary?since=' + encodeURIComponent(since) + '&group=' + encodeURIComponent(group);
+  fetch(url).then(function (r) { return r.json(); }).then(render).catch(function (e) {
+    document.getElementById('cards').innerHTML = '<div class="card"><div class="v">加载失败</div></div>';
+    document.getElementById('tableWrap').innerHTML = '<div class="empty">' + esc(String(e)) + '</div>';
+  });
+}
+
+document.getElementById('refresh').addEventListener('click', load);
+document.getElementById('since').addEventListener('change', load);
+document.getElementById('group').addEventListener('change', load);
+load();
+</script>
+</body>
+</html>
