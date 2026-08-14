@@ -8,6 +8,19 @@
 - 费用按默认 DeepSeek 官方单价折算（人民币 ¥，可用 `config.prices` 覆盖）
 - 网页面板：`http://127.0.0.1:3080/usage-stats/panel`
 
+## 截图
+
+![用量统计仪表盘（内嵌于 DSH Web UI 会话区）](docs/panel.png)
+
+在 Web UI 左侧栏点「用量统计」，即可在会话区内嵌打开仪表盘（保留左侧栏）。面板包含：
+
+- **概览卡片**：请求数、输入 / 输出 token、缓存读 / 写 token、估算费用（¥）
+- **分布图**：按费用（或请求数）占比的堆叠条形图与图例
+- **明细表**：按模型（或按天）的 token 用量与费用明细
+- **时间窗口**：全部 / 近 1 天 / 近 7 天 / 近 30 天
+
+统计口径与 `read_usage` 工具一致，均来自本地 SQLite。
+
 ## 安装
 
 ```bash
@@ -58,7 +71,11 @@ node smoke.mjs
 dsh-usage-stats/
 ├── package.json        # dsh.bundle.patch -> cordis.patch.yml
 ├── cordis.patch.yml    # 挂载插件
-├── dsh/index.js        # 插件本体（llm/stream 包装 + SQLite + read_usage）
+├── dsh/
+│   ├── index.js        # 插件本体（llm/stream 包装 + SQLite + read_usage + HTTP 路由）
+│   ├── client.js       # Web UI 侧边栏「用量统计」入口，会话区内嵌打开面板
+│   └── panel.html      # 仪表盘页面（/usage-stats/panel）
+├── docs/panel.png      # 界面截图
 ├── smoke.mjs           # 冒烟测试
 └── README.md
 ```
